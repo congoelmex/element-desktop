@@ -19,7 +19,8 @@ limitations under the License.
 
 // Squirrel on windows starts the app with various flags as hooks to tell us when we've been installed/uninstalled etc.
 import "./squirrelhooks";
-import { app, ipcMain, powerSaveBlocker, BrowserWindow, Menu, autoUpdater, protocol, dialog } from "electron";
+import { app, ipcMain, powerSaveBlocker, BrowserWindow, Menu, protocol, dialog } from "electron";
+import { autoUpdater } from "electron-updater";
 import AutoLaunch from "auto-launch";
 import path from "path";
 import windowStateKeeper from 'electron-window-state';
@@ -35,6 +36,7 @@ import webContentsHandler from './webcontents-handler';
 import * as updater from './updater';
 import { getProfileFromDeeplink, protocolInit, recordSSOSession } from './protocol';
 import { _t, AppLocalization } from './language-helper';
+import { ProxyConfig, Proxy } from './proxy-helper';
 
 const argv = minimist(process.argv, {
     alias: { help: "h" },
@@ -81,6 +83,7 @@ let iconPath;
 let trayConfig;
 let launcher;
 let appLocalization;
+let proxy;
 
 if (argv["help"]) {
     console.log("Options:");
@@ -261,6 +264,7 @@ const store = new Store<{
     spellCheckerEnabled?: boolean;
     autoHideMenuBar?: boolean;
     locale?: string | string[];
+    proxy?: ProxyConfig;
 }>({ name: "electron-config" });
 
 let eventIndex = null;
@@ -943,6 +947,17 @@ app.on('ready', async () => {
             webgl: true,
         },
     });
+
+    proxy = new Proxy({
+        store: store,
+        sessions: [
+            mainWindow.webContents.session, // apply proxy to main window
+            autoUpdater.netSession, // apply proxy to autoUpdater
+        ],
+    });
+
+    await proxy.applyProxy(); // wait for proxy settings to be applied
+
     mainWindow.loadURL('vector://vector/webapp/');
 
     // Handle spellchecker
@@ -1023,6 +1038,7 @@ function beforeQuit() {
     if (mainWindow) {
         mainWindow.webContents.send('before-quit');
     }
+    if (proxy) proxy.close();
 }
 
 app.on('before-quit', beforeQuit);
