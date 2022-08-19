@@ -2,7 +2,6 @@ FROM buildpack-deps:bionic-curl
 
 ENV DEBIAN_FRONTEND noninteractive
 
-RUN curl -L https://yarnpkg.com/latest.tar.gz | tar xvz && mv yarn-* /yarn && ln -s /yarn/bin/yarn /usr/bin/yarn
 RUN apt-get -qq update && apt-get -qq dist-upgrade && \
   # add repo for git-lfs
   curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
@@ -18,7 +17,13 @@ RUN apt-get -qq update && apt-get -qq dist-upgrade && \
   libsqlcipher-dev && \
   # git-lfs
   git lfs install && \
-  apt-get purge -y --auto-remove && rm -rf /var/lib/apt/lists/*
+  # used by flathub client \
+  apt-get -qq install -y --no-install-recommends flatpak ostree gettext appstream-util curl && \
+  apt-get -qq install -y python3 python3-dev python3-pip libgirepository1.0-dev gir1.2-ostree-1.0 libcairo2-dev && \
+  curl -sSL https://raw.githubusercontent.com/flatpak/flat-manager/master/flat-manager-client -o /usr/local/bin/flat-manager-client && \
+  chmod +x /usr/local/bin/flat-manager-client && \
+  pip3 install aiohttp tenacity PyGObject && \
+  apt-get purge -y --auto-remove && rm -rf /var/lib/apt/lists/
 
 WORKDIR /project
 
@@ -37,7 +42,8 @@ ENV NODE_VERSION 14.17.0
 RUN curl -L https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz | tar xz -C /usr/local --strip-components=1 && \
   unlink /usr/local/CHANGELOG.md && unlink /usr/local/LICENSE && unlink /usr/local/README.md && \
   # https://github.com/npm/npm/issues/4531
-  npm config set unsafe-perm true
+  npm config set unsafe-perm true && \
+  npm install --global yarn
 
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
