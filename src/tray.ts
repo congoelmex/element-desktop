@@ -45,15 +45,17 @@ function toggleWin(): void {
     }
 }
 
-interface IConfig {
-    icon_path: string; // eslint-disable-line camelcase
+export interface IConfig {
+    // if this is true, favicon updates from the main window will replace the application tray icon
+    allowWebIconOverride: boolean;
+    iconPath: string;
     brand: string;
 }
 
 export function create(config: IConfig): void {
     // no trays on darwin
     if (process.platform === 'darwin' || trayIcon) return;
-    const defaultIcon = nativeImage.createFromPath(config.icon_path);
+    const defaultIcon = nativeImage.createFromPath(config.iconPath);
 
     trayIcon = new Tray(defaultIcon);
     trayIcon.setToolTip(config.brand);
@@ -61,7 +63,15 @@ export function create(config: IConfig): void {
     trayIcon.on('click', toggleWin);
 
     let lastFavicon = null;
-    global.mainWindow.webContents.on('page-favicon-updated', async function(ev, favicons) {
+    global.mainWindow.webContents.on('page-title-updated', (_ev: Event, title: string) => {
+        trayIcon.setToolTip(title);
+    });
+
+    if (!config.allowWebIconOverride) {
+        return;
+    }
+
+    global.mainWindow.webContents.on('page-favicon-updated', async (_ev: Event, favicons: string[]) => {
         if (!favicons || favicons.length <= 0 || !favicons[0].startsWith('data:')) {
             if (lastFavicon !== null) {
                 global.mainWindow.setIcon(defaultIcon);
@@ -90,10 +100,6 @@ export function create(config: IConfig): void {
 
         trayIcon.setImage(newFavicon);
         global.mainWindow.setIcon(newFavicon);
-    });
-
-    global.mainWindow.webContents.on('page-title-updated', function(ev, title) {
-        trayIcon.setToolTip(title);
     });
 }
 
